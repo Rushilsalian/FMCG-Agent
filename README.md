@@ -75,7 +75,6 @@ public/                 index.html · styles.css · app.js (call flow) · views.
 scripts/seed.js         demo calls through the real agent
 data/                   products.json (15 SKUs) · schemes.json (6 with machine-readable terms, one expired) · retailers.json (4)
 tests/                  node:test suites
-docs/                   DEMO_SCRIPT.md · INTERVIEW_NOTES.md
 ```
 
 ## Architecture
@@ -183,7 +182,7 @@ Use Chrome or Edge on **http://localhost:3000**. Voice needs localhost or HTTPS.
 
 ## Limitations
 
-- **Free-tier quotas are tiny**: during development the key was limited to **5 requests/minute and 20 requests/day** on `gemini-3.5-flash`. A turn takes 1–3 requests plus 1 for the summary, so one free-tier day covers only about one demo call. Quotas are per model, so switching `GEMINI_MODEL` gives a fresh quota. For a real demo, use a paid key or `npm run start:mock`. A rate-limited turn shows a friendly **Retry**, and a rate-limited summary falls back to the rule-based one (`generated_by: "rules"`).
+- **Free-tier quotas are tiny**: during development the key was limited to **5 requests/minute and 20 requests/day** on `gemini-3.5-flash`. A turn takes 1–3 requests plus 1 for the summary, so one free-tier day covers only about one demo call. Quotas are per model, so switching `GEMINI_MODEL` gives a fresh quota. For a real demo, use a paid key or `npm run start:mock`. A per-minute limit shows the wait time with a **Retry** button, a used-up daily quota says when it resets, and a rate-limited summary falls back to the rule-based one (`generated_by: "rules"`).
 - **Latency**: about 2–8 s per turn depending on tool steps. There's no streaming.
 - **Browser speech**: best in Chrome/Edge. Chrome's recognition uses Google's servers, so it needs internet. Voice quality depends on the OS voices. There's no true voice barge-in (tap to interrupt instead).
 - **MockLLM is keyword-based**: it's fine for tests and demos, but only understands simple phrasings.
@@ -197,5 +196,3 @@ Use Chrome or Edge on **http://localhost:3000**. Voice needs localhost or HTTPS.
 - Hindi/Hinglish and regional languages per retailer.
 - An LLM eval suite (tool-call correctness, numbers match tool output, reply length), tracked per prompt or model version.
 - Redis sessions, a database for interactions (dashboard stats as SQL aggregates), auth, rate limiting and PII handling.
-
-More detail: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) · [docs/TEST_SCRIPT.md](docs/TEST_SCRIPT.md) (spoken test plan for every scenario) · [docs/INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md)

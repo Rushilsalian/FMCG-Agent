@@ -19,11 +19,12 @@ export const productLabel = (p) => `${p.name} ${p.pack_size}`;
 
 const STOPWORDS = new Set(['the', 'a', 'an', 'of', 'for', 'and', 'any', 'what', 'is', 'price', 'rate', 'pack', 'packet']);
 
+// Words of 3+ letters, or anything with a digit ("1kg", "250").
 function tokenize(text) {
   return String(text || '')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((t) => t && !STOPWORDS.has(t))
+    .filter((t) => (t.length >= 3 || /\d/.test(t)) && !STOPWORDS.has(t))
     .map((t) => (t.length > 3 && t.endsWith('s') ? t.slice(0, -1) : t)); // crude singular
 }
 
@@ -39,10 +40,12 @@ export function searchProducts({ query, category } = {}) {
   const scored = products
     .filter((p) => !cat || p.category.replace(/s$/, '') === cat)
     .map((p) => {
-      const haystack = [p.name, p.brand, p.category, p.sku, p.pack_size, p.pack_size.replace(/\s/g, '')]
+      const words = [p.name, p.brand, p.category, p.sku, p.pack_size, p.pack_size.replace(/\s/g, '')]
         .join(' ')
-        .toLowerCase();
-      return { p, score: tokens.filter((t) => haystack.includes(t)).length };
+        .toLowerCase()
+        .split(/[^a-z0-9]+/);
+      // A token matches when some catalogue word starts with it ("noodle" -> "noodles").
+      return { p, score: tokens.filter((t) => words.some((w) => w.startsWith(t))).length };
     })
     .filter(({ score }) => score > 0 || (cat && tokens.length === 0))
     .sort((a, b) => b.score - a.score)

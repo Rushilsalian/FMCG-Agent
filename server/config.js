@@ -10,10 +10,10 @@ export const config = {
   publicDir: path.join(ROOT, 'public'),
   interactionsFile: process.env.INTERACTIONS_FILE || path.join(ROOT, 'data', 'interactions.json'),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
   // "mock" forces the offline provider; otherwise Gemini is used when a key exists.
   llmProvider: (process.env.LLM_PROVIDER || '').toLowerCase(),
-  llmTimeoutMs: 20000,
+  llmTimeoutMs: 15000,
   sessionTtlMs: 30 * 60 * 1000,
 };
 

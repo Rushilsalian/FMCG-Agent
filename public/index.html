@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sunfield Retailer Connect</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Sunfield <span>Retailer Connect</span></div>
+    <nav>
+      <button class="link" data-nav="start">New call</button>
+      <button class="link" data-nav="history">History</button>
+      <span id="llm-badge" class="badge" title="LLM provider"></span>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 1. Start screen -->
+    <section id="screen-start" class="screen">
+      <h1>Who are we calling?</h1>
+      <p class="muted">Pick a retailer. Asha, our AI sales rep, will greet them and take it from there.</p>
+      <div id="retailer-list" class="retailer-list" role="radiogroup" aria-label="Retailers"></div>
+      <button id="start-btn" class="primary" disabled>Start conversation</button>
+      <p id="start-error" class="error" hidden></p>
+    </section>
+
+    <!-- 2. Conversation screen -->
+    <section id="screen-call" class="screen" hidden>
+      <div class="call-layout">
+        <div class="call-main">
+          <div class="call-header">
+            <div>
+              <h2 id="call-retailer"></h2>
+              <p id="call-retailer-meta" class="muted"></p>
+            </div>
+            <span id="call-timer" class="timer">00:00</span>
+          </div>
+
+          <div id="voice-banner" class="banner" hidden></div>
+
+          <ol id="transcript" class="transcript" aria-live="polite"></ol>
+          <p id="interim" class="interim" aria-live="polite"></p>
+
+          <div class="controls">
+            <button id="mic-btn" class="mic" data-state="idle" aria-label="Tap to speak">
+              <span class="mic-icon" aria-hidden="true"></span>
+            </button>
+            <div class="mic-side">
+              <span id="mic-label" class="mic-label">Tap to speak</span>
+              <label class="toggle">
+                <input type="checkbox" id="handsfree" /> Hands-free
+              </label>
+            </div>
+          </div>
+
+          <form id="text-form" class="text-form">
+            <input id="text-input" type="text" maxlength="500" autocomplete="off"
+                   placeholder="Or type the retailer's reply..." aria-label="Message" />
+            <button type="submit" class="primary">Send</button>
+          </form>
+        </div>
+
+        <aside class="captured">
+          <h3>Captured so far</h3>
+          <h4>Order enquiry</h4>
+          <ul id="cap-orders" class="cap-list"></ul>
+          <h4>Follow-ups</h4>
+          <ul id="cap-followups" class="cap-list"></ul>
+          <h4>Schemes discussed</h4>
+          <ul id="cap-schemes" class="cap-list"></ul>
+          <button id="end-btn" class="danger">End &amp; summarize</button>
+        </aside>
+      </div>
+    </section>
+
+    <!-- 3. Summary screen (shown after ending a call) -->
+    <section id="screen-summary" class="screen" hidden>
+      <h1>Call summary</h1>
+      <div id="summary-body"></div>
+      <div class="row">
+        <button class="primary" data-nav="start">Start another call</button>
+        <button class="secondary" data-nav="history">View history</button>
+      </div>
+    </section>
+
+    <!-- 4. History list and detail -->
+    <section id="screen-history" class="screen" hidden>
+      <h1>Past interactions</h1>
+      <div id="history-list"></div>
+    </section>
+
+    <section id="screen-detail" class="screen" hidden>
+      <button class="link back" data-nav="history">&larr; Back to history</button>
+      <div id="detail-body"></div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

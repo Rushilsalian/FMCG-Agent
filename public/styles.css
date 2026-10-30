@@ -117,4 +117,8 @@ th { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--brand-soft); }
 .back { margin-bottom: 0.75rem; }
+.kv ul { margin: 0; padding-left: 1.1rem; }
+details { margin-top: 1rem; }
+details pre { background: #f7f7f5; padding: 0.75rem; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; }
+.transcript.full { height: auto; max-height: none; }
 .loading { color: var(--muted); font-style: italic; }

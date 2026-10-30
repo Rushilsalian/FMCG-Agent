@@ -2,18 +2,35 @@
 // of Gemini. Exercises the HTTP API exactly as the browser does.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createApp } from '../server/app.js';
 import { createMockLLM } from '../server/llm/mock.js';
+import { createInteractionRepo } from '../server/store/interactionRepo.js';
+import { validateSummary } from '../server/services/summarySchema.js';
 
 let server;
 let base;
+let tmpDir;
+let repo;
 
 before(async () => {
-  server = createApp({ llm: createMockLLM() }).listen(0);
+  tmpDir = await mkdtemp(path.join(tmpdir(), 'fmcg-e2e-'));
+  repo = createInteractionRepo(path.join(tmpDir, 'interactions.json'));
+  server = createApp({ llm: createMockLLM(), repo }).listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://localhost:${server.address().port}/api`;
 });
-after(() => server.close());
+after(async () => {
+  server.close();
+  await rm(tmpDir, { recursive: true, force: true });
+});
+
+const get = async (p) => {
+  const res = await fetch(base + p);
+  return { status: res.status, body: await res.json() };
+};
 
 async function post(path, body) {
   const res = await fetch(base + path, {
@@ -60,6 +77,28 @@ test('full conversation: price, scheme, out-of-stock, order, follow-up', async (
 
   const offTopic = await say('Who will win the cricket match?');
   assert.match(offTopic.reply, /only help with our products/);
+
+  // End: summary is valid, built from captured facts, and saved with the transcript.
+  const end = await post(`/sessions/${start.body.sessionId}/end`, {});
+  assert.equal(end.status, 200);
+  const { interaction } = end.body;
+  assert.deepEqual(validateSummary(interaction.summary), []);
+  assert.equal(interaction.summary.outcome, 'order_enquiry');
+  assert.deepEqual(interaction.summary.products, [{ sku: 'NDL-MAS-70', name: 'Zippy Masala Noodles 70 g', quantity: 10, unit: 'cases' }]);
+  assert.equal(interaction.summary.followups[0].when, 'Friday after 4 pm');
+  assert.equal(interaction.transcript.length, 1 + 2 * 7); // greeting + 7 exchanges
+  assert.equal(interaction.retailer.owner, 'Ramesh Sharma');
+  assert.ok(interaction.durationSeconds >= 0 && interaction.endedAt >= interaction.startedAt);
+
+  // The session is closed, and the call shows up in history.
+  assert.equal((await post(`/sessions/${start.body.sessionId}/messages`, { text: 'hello?' })).status, 404);
+  const history = await get('/interactions');
+  assert.equal(history.body[0].id, interaction.id);
+  assert.equal(history.body[0].outcome, 'order_enquiry');
+  const detail = await get(`/interactions/${interaction.id}`);
+  assert.equal(detail.body.transcript.length, interaction.transcript.length);
+  assert.equal((await get('/interactions/does-not-exist')).status, 404);
+  assert.equal((await get('/interactions/bad%20id!')).status, 400);
 });
 
 test('API validates input', async () => {
@@ -74,7 +113,7 @@ test('API validates input', async () => {
 test('a failed LLM call returns a retryable error and leaves the session clean', async () => {
   const llm = createMockLLM();
   const flaky = { ...llm, fail: true, async generate(args) { if (this.fail) throw new Error('network down'); return llm.generate(args); } };
-  const flakyServer = createApp({ llm: flaky }).listen(0);
+  const flakyServer = createApp({ llm: flaky, repo }).listen(0);
   await new Promise((resolve) => flakyServer.once('listening', resolve));
   const url = `http://localhost:${flakyServer.address().port}/api`;
   const send = (path, body) =>

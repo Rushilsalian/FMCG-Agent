@@ -40,5 +40,16 @@ export function sessionsRouter({ agent, sessions }) {
     }
   });
 
+  // The summariser never throws (it falls back to rules), so only storage can fail here.
+  router.post('/:id/end', async (req, res) => {
+    const session = loadSession(req.params.id);
+    try {
+      res.json({ interaction: await agent.endConversation(session) });
+    } catch (err) {
+      console.error('Saving interaction failed:', err);
+      throw new HttpError(500, "Couldn't save this interaction. Please try ending the call again.", { retryable: true });
+    }
+  });
+
   return router;
 }

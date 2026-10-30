@@ -4,6 +4,7 @@ import { toolDeclarations, runTool } from '../tools/index.js';
 import { emptyCaptured } from '../tools/capture.js';
 import { buildSystemPrompt, buildGreeting } from './prompts.js';
 import { toSpeakable } from './text.js';
+import { summarize } from './summarizer.js';
 import { todayISO } from '../config.js';
 
 // Enough for search -> check -> record in one turn, but stops runaway loops.
@@ -11,7 +12,7 @@ const MAX_TOOL_ROUNDS = 5;
 const EMPTY_REPLY = "Sorry, I didn't catch that. Could you say it again?";
 const TOO_MANY_STEPS = 'Let me check on that and get back to you. Is there anything else I can help with?';
 
-export function createAgent({ llm, sessions }) {
+export function createAgent({ llm, sessions, repo }) {
   function startConversation(retailer) {
     const greeting = buildGreeting(retailer);
     const now = new Date().toISOString();
@@ -75,5 +76,31 @@ export function createAgent({ llm, sessions }) {
     }
   }
 
-  return { startConversation, reply };
+  /** Summarise, save and close the conversation. */
+  async function endConversation(session) {
+    session.busy = true;
+    try {
+      const endedAt = new Date();
+      const { retailer, transcript, captured } = session;
+      const summary = await summarize({ llm, retailer, transcript, captured });
+      const interaction = {
+        id: session.id,
+        retailer: { id: retailer.id, store_name: retailer.store_name, owner: retailer.owner, area: retailer.area },
+        startedAt: session.startedAt,
+        endedAt: endedAt.toISOString(),
+        durationSeconds: Math.round((endedAt - new Date(session.startedAt)) / 1000),
+        llm: `${llm.name}:${llm.model}`,
+        summary,
+        captured,
+        transcript,
+      };
+      await repo.save(interaction);
+      sessions.delete(session.id);
+      return interaction;
+    } finally {
+      session.busy = false; // if saving failed, the user can try ending again
+    }
+  }
+
+  return { startConversation, reply, endConversation };
 }

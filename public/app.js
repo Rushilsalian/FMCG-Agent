@@ -147,6 +147,7 @@ document.addEventListener('click', (e) => {
   if (state.sessionId && !confirm('Leave this call without summarizing it?')) return;
   leaveCall();
   if (target.dataset.nav === 'start') show('start');
+  if (target.dataset.nav === 'history') loadHistory();
 });
 
 // ---------- start screen ----------
@@ -293,10 +294,134 @@ function leaveCall() {
   $('#interim').textContent = '';
 }
 
+// ---------- end call & summary ----------
+
+async function endCall() {
+  if (state.busy || !state.sessionId) return;
+  voice.abortListening();
+  voice.stopSpeaking();
+  setBusy(true);
+  setMicState('thinking');
+  const btn = $('#end-btn');
+  btn.textContent = 'Summarizing...';
+  try {
+    const { interaction } = await api.endSession(state.sessionId);
+    leaveCall();
+    $('#summary-body').replaceChildren(renderInteraction(interaction, { withTranscript: false }));
+    show('summary');
+  } catch (err) {
+    addMessage('error', err.message);
+    setMicState('idle');
+  } finally {
+    setBusy(false);
+    btn.textContent = 'End & summarize';
+  }
+}
+
+const OUTCOME_LABELS = {
+  order_enquiry: 'Order enquiry',
+  follow_up_required: 'Follow-up required',
+  info_only: 'Info only',
+  not_interested: 'Not interested',
+};
+const formatDateTime = (iso) =>
+  new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const formatDuration = (s) => `${Math.floor(s / 60)}m ${s % 60}s`;
+const listOrNone = (items, render) => (items.length ? h('ul', {}, items.map((x) => h('li', {}, render(x)))) : 'None');
+
+// Shared by the post-call summary screen and the history detail screen.
+function renderInteraction(interaction, { withTranscript }) {
+  const { summary, retailer } = interaction;
+  const card = h(
+    'div',
+    { class: 'card' },
+    h('h2', {}, `${retailer.store_name} · ${retailer.owner}`),
+    h('p', { class: 'muted' }, `${formatDateTime(interaction.startedAt)} · ${formatDuration(interaction.durationSeconds)} · ${retailer.area}`),
+    h(
+      'dl',
+      { class: 'kv' },
+      h('dt', {}, 'Outcome'), h('dd', {}, h('span', { class: `pill ${summary.outcome}` }, OUTCOME_LABELS[summary.outcome])),
+      h('dt', {}, 'Overview'), h('dd', {}, summary.overview),
+      h('dt', {}, 'Products'), h('dd', {}, listOrNone(summary.products, (p) => `${p.quantity} ${p.unit} · ${p.name} (${p.sku})`)),
+      h('dt', {}, 'Schemes discussed'), h('dd', {}, listOrNone(summary.schemes_discussed, (s) => `${s.name}${s.status === 'expired' ? ' (expired)' : ''}`)),
+      h('dt', {}, 'Follow-ups'), h('dd', {}, listOrNone(summary.followups, (f) => `${f.type.replace(/_/g, ' ')} · ${f.when}: ${f.details}`)),
+      h('dt', {}, 'Sentiment'), h('dd', {}, summary.sentiment),
+      h('dt', {}, 'Next action'), h('dd', {}, summary.next_action),
+      h('dt', {}, 'Written by'), h('dd', {}, summary.generated_by === 'llm' ? `LLM (${interaction.llm})` : 'Rule-based fallback'),
+    ),
+    h('details', {}, h('summary', {}, 'Summary JSON'), h('pre', {}, JSON.stringify(summary, null, 2))),
+  );
+  if (!withTranscript) return card;
+
+  const transcript = h(
+    'div',
+    { class: 'card' },
+    h('h3', {}, 'Transcript'),
+    h(
+      'ol',
+      { class: 'transcript full' },
+      interaction.transcript.map((t) =>
+        h('li', { class: `msg ${t.role}` }, t.text, t.tools?.length ? h('span', { class: 'tools' }, `checked: ${t.tools.join(', ')}`) : null),
+      ),
+    ),
+  );
+  return h('div', {}, card, transcript);
+}
+
+// ---------- history ----------
+
+async function loadHistory() {
+  show('history');
+  const container = $('#history-list');
+  container.replaceChildren(h('p', { class: 'loading' }, 'Loading...'));
+  try {
+    const rows = await api.interactions();
+    if (!rows.length) {
+      container.replaceChildren(h('p', { class: 'muted' }, 'No interactions yet. Start a call and end it to see it here.'));
+      return;
+    }
+    container.replaceChildren(
+      h(
+        'table',
+        {},
+        h('thead', {}, h('tr', {}, ['Date', 'Retailer', 'Outcome', 'Products'].map((c) => h('th', {}, c)))),
+        h(
+          'tbody',
+          {},
+          rows.map((r) =>
+            h(
+              'tr',
+              { onclick: () => openDetail(r.id), tabindex: '0', onkeydown: (e) => e.key === 'Enter' && openDetail(r.id) },
+              h('td', {}, formatDateTime(r.startedAt)),
+              h('td', {}, r.retailer.store_name, h('br'), h('small', { class: 'muted' }, r.retailer.owner)),
+              h('td', {}, h('span', { class: `pill ${r.outcome}` }, OUTCOME_LABELS[r.outcome])),
+              h('td', {}, r.products.length ? r.products.map((p) => `${p.quantity} ${p.unit} ${p.name}`).join(', ') : '-'),
+            ),
+          ),
+        ),
+      ),
+    );
+  } catch (err) {
+    container.replaceChildren(h('p', { class: 'error' }, `Could not load history: ${err.message}`));
+  }
+}
+
+async function openDetail(id) {
+  show('detail');
+  const body = $('#detail-body');
+  body.replaceChildren(h('p', { class: 'loading' }, 'Loading...'));
+  try {
+    body.replaceChildren(renderInteraction(await api.interaction(id), { withTranscript: true }));
+  } catch (err) {
+    body.replaceChildren(h('p', { class: 'error' }, err.message));
+  }
+}
+
 // ---------- wiring ----------
 
 $('#start-btn').addEventListener('click', startCall);
 $('#mic-btn').addEventListener('click', onMicClick);
+$('#end-btn').addEventListener('click', endCall);
 $('#handsfree').addEventListener('change', (e) => {
   state.handsFree = e.target.checked;
   state.quietRestarts = 0;

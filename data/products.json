@@ -1,0 +1,17 @@
+[
+  { "sku": "BIS-GLU-100", "name": "Crunchies Glucose Biscuits", "brand": "Crunchies", "category": "biscuits", "pack_size": "100 g", "mrp": 10, "retailer_price": 8.5, "case_size": 96, "stock_units": 4800 },
+  { "sku": "BIS-BOU-150", "name": "Crunchies Cream Bourbon", "brand": "Crunchies", "category": "biscuits", "pack_size": "150 g", "mrp": 35, "retailer_price": 29.5, "case_size": 48, "stock_units": 1440 },
+  { "sku": "BIS-MAR-250", "name": "Mornings Marie Lite", "brand": "Mornings", "category": "biscuits", "pack_size": "250 g", "mrp": 40, "retailer_price": 34, "case_size": 36, "stock_units": 90 },
+  { "sku": "NDL-MAS-70", "name": "Zippy Masala Noodles", "brand": "Zippy", "category": "noodles", "pack_size": "70 g", "mrp": 15, "retailer_price": 12.75, "case_size": 96, "stock_units": 6720 },
+  { "sku": "NDL-ATT-280", "name": "Zippy Atta Noodles 4-pack", "brand": "Zippy", "category": "noodles", "pack_size": "280 g", "mrp": 60, "retailer_price": 51, "case_size": 24, "stock_units": 0 },
+  { "sku": "TEA-PRM-250", "name": "Chai Raja Premium Tea", "brand": "Chai Raja", "category": "tea", "pack_size": "250 g", "mrp": 140, "retailer_price": 121, "case_size": 40, "stock_units": 1600 },
+  { "sku": "TEA-PRM-1KG", "name": "Chai Raja Premium Tea", "brand": "Chai Raja", "category": "tea", "pack_size": "1 kg", "mrp": 520, "retailer_price": 455, "case_size": 12, "stock_units": 20 },
+  { "sku": "COF-INS-50", "name": "Brewly Instant Coffee", "brand": "Brewly", "category": "coffee", "pack_size": "50 g", "mrp": 165, "retailer_price": 142, "case_size": 48, "stock_units": 960 },
+  { "sku": "SOP-SAN-100", "name": "Neela Sandal Soap", "brand": "Neela", "category": "soap", "pack_size": "100 g", "mrp": 38, "retailer_price": 32, "case_size": 144, "stock_units": 2880 },
+  { "sku": "SOP-NEM-4X100", "name": "Neela Neem Soap 4-pack", "brand": "Neela", "category": "soap", "pack_size": "4 x 100 g", "mrp": 140, "retailer_price": 118, "case_size": 36, "stock_units": 720 },
+  { "sku": "SHP-SLK-180", "name": "SilkLeaf Shampoo", "brand": "SilkLeaf", "category": "shampoo", "pack_size": "180 ml", "mrp": 160, "retailer_price": 134, "case_size": 36, "stock_units": 540 },
+  { "sku": "SHP-SLK-340", "name": "SilkLeaf Shampoo", "brand": "SilkLeaf", "category": "shampoo", "pack_size": "340 ml", "mrp": 290, "retailer_price": 245, "case_size": 24, "stock_units": 0 },
+  { "sku": "DET-PWD-1KG", "name": "BrightWash Detergent Powder", "brand": "BrightWash", "category": "detergent", "pack_size": "1 kg", "mrp": 110, "retailer_price": 94, "case_size": 24, "stock_units": 1200 },
+  { "sku": "DET-LIQ-1L", "name": "BrightWash Liquid Detergent", "brand": "BrightWash", "category": "detergent", "pack_size": "1 L", "mrp": 199, "retailer_price": 168, "case_size": 12, "stock_units": 30 },
+  { "sku": "TPS-DNT-150", "name": "DentaGlo Toothpaste", "brand": "DentaGlo", "category": "toothpaste", "pack_size": "150 g", "mrp": 95, "retailer_price": 81, "case_size": 72, "stock_units": 1440 }
+]

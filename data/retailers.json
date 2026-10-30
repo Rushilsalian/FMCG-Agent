@@ -1,0 +1,6 @@
+[
+  { "id": "R001", "store_name": "Sharma General Store", "owner": "Ramesh Sharma", "salutation": "Ramesh ji", "area": "Andheri East, Mumbai", "outlet_type": "kirana", "usual_categories": ["biscuits", "noodles", "tea"] },
+  { "id": "R002", "store_name": "Lakshmi Provision Stores", "owner": "Lakshmi Iyer", "salutation": "Lakshmi ji", "area": "Jayanagar, Bengaluru", "outlet_type": "kirana", "usual_categories": ["tea", "coffee", "detergent", "soap"] },
+  { "id": "R003", "store_name": "Gupta Kirana Mart", "owner": "Sanjay Gupta", "salutation": "Sanjay ji", "area": "Lajpat Nagar, Delhi", "outlet_type": "mini-mart", "usual_categories": ["noodles", "shampoo", "toothpaste"] },
+  { "id": "R004", "store_name": "Patel Daily Needs", "owner": "Meena Patel", "salutation": "Meena ben", "area": "Navrangpura, Ahmedabad", "outlet_type": "general store", "usual_categories": ["soap", "shampoo", "biscuits"] }
+]

@@ -73,7 +73,7 @@ export async function summarize({ llm, retailer, transcript, captured }) {
     if (errors.length === 0) return summary;
     console.warn('LLM summary failed validation, using rules:', errors.join('; '));
   } catch (err) {
-    if (llm.name !== 'mock') console.warn('LLM summary failed, using rules:', err.message);
+    if (llm.name !== 'mock') console.warn('LLM summary failed, using rules:', err.status === 429 ? 'rate limited' : err.message);
   }
   return { ...ruleBasedNarrative(retailer, transcript, captured), ...facts, generated_by: 'rules' };
 }

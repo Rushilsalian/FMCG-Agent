@@ -2,101 +2,221 @@
 <html lang="en-IN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#d9480f" />
   <title>Sunfield Retailer Connect</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d9480f'/%3E%3Ccircle cx='16' cy='17' r='6' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Apply a saved theme before first paint, so dark mode doesn't flash.
+    const saved = localStorage.getItem('theme');
+    if (saved) document.documentElement.dataset.theme = saved;
+  </script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">Sunfield <span>Retailer Connect</span></div>
-    <nav>
-      <button class="link" data-nav="start">New call</button>
-      <button class="link" data-nav="history">History</button>
-      <span id="llm-badge" class="badge" title="LLM provider"></span>
-    </nav>
-  </header>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="6" fill="#fff"/><path d="M16 5v4M6.8 8.8l2.8 2.8M25.2 8.8l-2.8 2.8M3 18h4M25 18h4" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </span>
+        <span class="brand-text"><strong>Sunfield</strong><small>Retailer Connect</small></span>
+      </div>
 
-  <main>
-    <!-- 1. Start screen -->
-    <section id="screen-start" class="screen">
-      <h1>Who are we calling?</h1>
-      <p class="muted">Pick a retailer. Asha, our AI sales rep, will greet them and take it from there.</p>
-      <div id="retailer-list" class="retailer-list" role="radiogroup" aria-label="Retailers"></div>
-      <button id="start-btn" class="primary" disabled>Start conversation</button>
-      <p id="start-error" class="error" hidden></p>
-    </section>
+      <nav class="nav" aria-label="Main">
+        <button class="nav-item" data-nav="dashboard">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-nav="start">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+          <span>New call</span>
+        </button>
+        <button class="nav-item" data-nav="history">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l4 2"/></svg>
+          <span>History</span>
+        </button>
+        <button class="nav-item" data-nav="catalog">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg>
+          <span>Catalogue</span>
+        </button>
+      </nav>
 
-    <!-- 2. Conversation screen -->
-    <section id="screen-call" class="screen" hidden>
-      <div class="call-layout">
-        <div class="call-main">
-          <div class="call-header">
-            <div>
-              <h2 id="call-retailer"></h2>
-              <p id="call-retailer-meta" class="muted"></p>
-            </div>
-            <span id="call-timer" class="timer">00:00</span>
+      <div class="sidebar-foot">
+        <div class="agent-card">
+          <span class="avatar agent-avatar">A</span>
+          <div>
+            <strong>Asha</strong>
+            <small>AI sales rep</small>
           </div>
-
-          <div id="voice-banner" class="banner" hidden></div>
-
-          <ol id="transcript" class="transcript" aria-live="polite"></ol>
-          <p id="interim" class="interim" aria-live="polite"></p>
-
-          <div class="controls">
-            <button id="mic-btn" class="mic" data-state="idle" aria-label="Tap to speak">
-              <span class="mic-icon" aria-hidden="true"></span>
-            </button>
-            <div class="mic-side">
-              <span id="mic-label" class="mic-label">Tap to speak</span>
-              <label class="toggle">
-                <input type="checkbox" id="handsfree" /> Hands-free
-              </label>
-            </div>
-          </div>
-
-          <form id="text-form" class="text-form">
-            <input id="text-input" type="text" maxlength="500" autocomplete="off"
-                   placeholder="Or type the retailer's reply..." aria-label="Message" />
-            <button type="submit" class="primary">Send</button>
-          </form>
         </div>
-
-        <aside class="captured">
-          <h3>Captured so far</h3>
-          <h4>Order enquiry</h4>
-          <ul id="cap-orders" class="cap-list"></ul>
-          <h4>Follow-ups</h4>
-          <ul id="cap-followups" class="cap-list"></ul>
-          <h4>Schemes discussed</h4>
-          <ul id="cap-schemes" class="cap-list"></ul>
-          <button id="end-btn" class="danger">End &amp; summarize</button>
-        </aside>
+        <div class="llm-status" title="LLM provider"><span class="dot"></span><span class="llm-badge"></span></div>
       </div>
-    </section>
+    </aside>
 
-    <!-- 3. Summary screen (shown after ending a call) -->
-    <section id="screen-summary" class="screen" hidden>
-      <h1>Call summary</h1>
-      <div id="summary-body"></div>
-      <div class="row">
-        <button class="primary" data-nav="start">Start another call</button>
-        <button class="secondary" data-nav="history">View history</button>
-      </div>
-    </section>
+    <div class="content">
+      <header class="topbar">
+        <div class="brand compact">
+          <span class="logo" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="6" fill="#fff"/><path d="M16 5v4M6.8 8.8l2.8 2.8M25.2 8.8l-2.8 2.8M3 18h4M25 18h4" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </span>
+          <span class="brand-text"><strong>Sunfield</strong><small>Retailer Connect</small></span>
+        </div>
+        <div class="topbar-right">
+          <div class="llm-status" title="LLM provider"><span class="dot"></span><span class="llm-badge"></span></div>
+          <button class="icon-btn theme-toggle" aria-label="Toggle dark mode">
+            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          </button>
+        </div>
+      </header>
 
-    <!-- 4. History list and detail -->
-    <section id="screen-history" class="screen" hidden>
-      <h1>Past interactions</h1>
-      <div id="history-list"></div>
-    </section>
+      <main>
+        <!-- Dashboard -->
+        <section id="screen-dashboard" class="screen" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Sales overview</h1>
+              <p class="muted">What Asha's retailer calls have produced, from saved interactions.</p>
+            </div>
+            <button class="primary" data-nav="start">Start a call</button>
+          </div>
+          <div id="dashboard-body"><p class="loading">Loading...</p></div>
+        </section>
 
-    <section id="screen-detail" class="screen" hidden>
-      <button class="link back" data-nav="history">&larr; Back to history</button>
-      <div id="detail-body"></div>
-    </section>
-  </main>
+        <!-- Start a call -->
+        <section id="screen-start" class="screen" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Who are we calling?</h1>
+              <p class="muted">Pick a retailer. Asha greets them by name, remembers their last call, and takes it from there.</p>
+            </div>
+          </div>
+          <div id="retailer-list" class="retailer-list" role="radiogroup" aria-label="Retailers"></div>
+          <div class="start-bar">
+            <p id="start-error" class="error" hidden></p>
+            <button id="start-btn" class="primary big" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+              <span>Start conversation</span>
+            </button>
+          </div>
+        </section>
 
+        <!-- Live call -->
+        <section id="screen-call" class="screen" hidden>
+          <div class="call-layout">
+            <div class="call-main card">
+              <div class="call-header">
+                <span id="call-avatar" class="avatar"></span>
+                <div class="call-who">
+                  <h2 id="call-retailer"></h2>
+                  <p id="call-retailer-meta" class="muted"></p>
+                </div>
+                <span class="live" title="Call duration"><span class="live-dot"></span><span id="call-timer">00:00</span></span>
+                <button id="order-toggle" class="secondary order-toggle" aria-controls="order-panel" aria-expanded="false">Order</button>
+                <button id="end-btn" class="danger">End &amp; summarize</button>
+              </div>
+
+              <div id="memory-banner" class="memory" hidden></div>
+              <div id="voice-banner" class="banner" hidden></div>
+
+              <ol id="transcript" class="transcript" aria-live="polite"></ol>
+              <p id="interim" class="interim" aria-live="polite"></p>
+
+              <div id="suggestions" class="suggestions" role="group" aria-label="Suggested retailer replies"></div>
+
+              <div class="composer">
+                <button id="mic-btn" class="mic" data-state="idle" aria-label="Tap to speak">
+                  <svg class="mic-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>
+                  <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+                </button>
+                <div class="composer-main">
+                  <div class="mic-row">
+                    <span id="mic-label" class="mic-label">Tap to speak</span>
+                    <label class="toggle">
+                      <input type="checkbox" id="handsfree" />
+                      <span class="switch" aria-hidden="true"></span> Hands-free
+                    </label>
+                    <span class="kbd-hint"><kbd>Space</kbd> talk · <kbd>Esc</kbd> stop</span>
+                  </div>
+                  <form id="text-form" class="text-form">
+                    <input id="text-input" type="text" maxlength="500" autocomplete="off"
+                           placeholder="Or type the retailer's reply..." aria-label="Message" />
+                    <button type="submit" class="primary">Send</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <aside id="order-panel" class="order-panel card" aria-label="Captured so far">
+              <div class="panel-head">
+                <div>
+                  <span class="stat-label">Live order enquiry</span>
+                  <span id="order-net" class="order-net">₹0</span>
+                  <span id="order-savings" class="order-savings"></span>
+                </div>
+                <button id="order-close" class="icon-btn" aria-label="Close order panel">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div id="cap-quote"></div>
+              <div id="cap-nudges" class="nudges"></div>
+              <h4>Follow-ups</h4>
+              <ul id="cap-followups" class="cap-list"></ul>
+              <h4>Schemes discussed</h4>
+              <ul id="cap-schemes" class="cap-list"></ul>
+            </aside>
+            <div id="panel-backdrop" class="backdrop" hidden></div>
+          </div>
+        </section>
+
+        <!-- Summary (after ending a call) -->
+        <section id="screen-summary" class="screen" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Call summary</h1>
+              <p class="muted">Saved with the full transcript. Facts come from captured tool data, not model text.</p>
+            </div>
+          </div>
+          <div id="summary-body"></div>
+          <div class="row no-print">
+            <button class="primary" data-nav="start">Start another call</button>
+            <button class="secondary" data-nav="dashboard">Dashboard</button>
+            <button class="secondary" data-nav="history">History</button>
+          </div>
+        </section>
+
+        <!-- History -->
+        <section id="screen-history" class="screen" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Past interactions</h1>
+              <p class="muted">Every call, its outcome and value. Click a row for the summary and transcript.</p>
+            </div>
+          </div>
+          <div id="history-list"></div>
+        </section>
+
+        <section id="screen-detail" class="screen" hidden>
+          <button class="link back no-print" data-nav="history">&larr; Back to history</button>
+          <div id="detail-body"></div>
+        </section>
+
+        <!-- Catalogue -->
+        <section id="screen-catalog" class="screen" hidden>
+          <div class="page-head">
+            <div>
+              <h1>Product catalogue</h1>
+              <p class="muted">The sample business data Asha's tools read from: prices, margins, stock and live schemes.</p>
+            </div>
+          </div>
+          <div id="catalog-body"><p class="loading">Loading...</p></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

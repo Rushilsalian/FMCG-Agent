@@ -1,11 +1,38 @@
 // Conversation API: start a call, send a retailer turn, end the call.
 import { Router } from 'express';
 import { findRetailer } from '../tools/catalog.js';
+import { quoteOrder } from '../tools/pricing.js';
 import { HttpError, requireText } from '../errors.js';
 
 const MAX_MESSAGE_LENGTH = 500;
 const LLM_UNAVAILABLE = "Sorry, I couldn't reach the assistant just now. Please try again.";
-const LLM_RATE_LIMITED = 'The assistant is getting too many requests. Please wait a few seconds and try again.';
+
+// "3 h 16 min", "45 s"
+function formatWait(seconds) {
+  if (seconds < 90) return `${seconds} s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+
+// A per-minute limit clears soon, so Retry makes sense. A daily quota does not:
+// say so plainly, with the ways out, and don't offer a Retry that will only fail.
+function rateLimitError({ scope, retryAfterSeconds } = {}) {
+  const wait = retryAfterSeconds ? formatWait(retryAfterSeconds) : null;
+  if (scope === 'day') {
+    return new HttpError(
+      503,
+      `The Gemini API key has used its free daily quota${wait ? ` (it resets in about ${wait})` : ''}. ` +
+        'To keep going, set a different GEMINI_MODEL, use a paid key, or restart with npm run start:mock.',
+      { retryable: false, rateLimit: 'day' },
+    );
+  }
+  return new HttpError(
+    503,
+    `The assistant is getting too many requests (per-minute limit). Please wait ${wait || 'a few seconds'} and try again.`,
+    { retryable: true, rateLimit: 'minute' },
+  );
+}
 
 export function sessionsRouter({ agent, sessions }) {
   const router = Router();
@@ -17,15 +44,17 @@ export function sessionsRouter({ agent, sessions }) {
     return session;
   }
 
-  router.post('/', (req, res) => {
+  router.post('/', async (req, res) => {
     const retailer = findRetailer(req.body?.retailerId);
     if (!retailer) throw new HttpError(400, 'Please choose a valid retailer.');
-    const session = agent.startConversation(retailer);
+    const session = await agent.startConversation(retailer);
     res.status(201).json({
       sessionId: session.id,
       retailer,
+      previousCall: session.previous,
       reply: session.transcript[0].text,
       captured: session.captured,
+      quote: quoteOrder(session.captured.orders),
     });
   });
 
@@ -35,8 +64,13 @@ export function sessionsRouter({ agent, sessions }) {
     try {
       res.json(await agent.reply(session, text));
     } catch (err) {
+      if (err.status === 429) {
+        const { scope, retryAfterSeconds } = err.rateLimit || {};
+        console.error(`LLM turn rate-limited: ${scope || 'unknown'} quota, retry after ${retryAfterSeconds ?? '?'} s`);
+        throw rateLimitError(err.rateLimit);
+      }
       console.error('LLM turn failed:', err.message);
-      throw new HttpError(503, err.status === 429 ? LLM_RATE_LIMITED : LLM_UNAVAILABLE, { retryable: true });
+      throw new HttpError(503, LLM_UNAVAILABLE, { retryable: true });
     }
   });
 

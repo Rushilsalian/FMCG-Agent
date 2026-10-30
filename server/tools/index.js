@@ -2,6 +2,7 @@
 // loop calls. Declarations use plain JSON Schema so any provider can use them.
 import { searchProducts, getPriceAndSchemes, checkAvailability } from './catalog.js';
 import { recordOrderInterest, recordFollowup, ORDER_UNITS, FOLLOWUP_TYPES } from './capture.js';
+import { quoteOrder } from './pricing.js';
 import { todayISO } from '../config.js';
 
 export const toolDeclarations = [
@@ -43,7 +44,7 @@ export const toolDeclarations = [
   {
     name: 'record_order_interest',
     description:
-      'Record an order enquiry. Only call after the retailer has confirmed the product, quantity and unit. Calling again for the same SKU replaces the quantity.',
+      'Record an order enquiry. Only call after the retailer has confirmed the product, quantity and unit. Calling again for the same SKU replaces the quantity. The result includes the updated quote (net value, savings, nudges), so there is no need to call quote_order afterwards.',
     parameters: {
       type: 'object',
       properties: {
@@ -67,14 +68,24 @@ export const toolDeclarations = [
       required: ['type', 'details', 'when'],
     },
   },
+  {
+    name: 'quote_order',
+    description:
+      "Price the order enquiry recorded so far with today's schemes applied: gross value, discounts, free cases, net value, total savings, and nudges saying how close the retailer is to the next offer. Use it when the retailer asks for the total or the bill.",
+    parameters: { type: 'object', properties: {} },
+  },
 ];
+
+const withQuote = (result, ctx) => (result.ok ? { ...result, quote: quoteOrder(ctx.captured.orders, ctx.today) } : result);
 
 const handlers = {
   search_products: (args) => searchProducts(args),
   get_price_and_schemes: (args, ctx) => getPriceAndSchemes(args, ctx.today),
   check_availability: (args) => checkAvailability(args),
-  record_order_interest: (args, ctx) => recordOrderInterest(ctx.captured, args),
+  // Returning the quote with the recording saves the model a quote_order round trip (one LLM request) per order.
+  record_order_interest: (args, ctx) => withQuote(recordOrderInterest(ctx.captured, args), ctx),
   record_followup: (args, ctx) => recordFollowup(ctx.captured, args),
+  quote_order: (args, ctx) => quoteOrder(ctx.captured.orders, ctx.today),
 };
 
 // Remember which schemes the agent was told about, for the summary.
@@ -104,5 +115,28 @@ export function runTool(name, args, ctx) {
     return result;
   } catch (err) {
     return { ok: false, error: `Tool failed: ${err.message}` };
+  }
+}
+
+const rupees = (n) => `₹${Number(n).toLocaleString('en-IN')}`;
+const results = {
+  search_products: (r) => `${r.results.length} match${r.results.length === 1 ? '' : 'es'}${r.results[0] ? `, top: ${r.results[0].name}` : ''}`,
+  get_price_and_schemes: (r) =>
+    r.sku
+      ? `${rupees(r.retailer_price)} (MRP ${rupees(r.mrp)}, ${r.margin_percent}% margin), ${r.active_schemes.length} active / ${r.expired_schemes.length} expired schemes`
+      : `${r.active_schemes.length} active schemes`,
+  check_availability: (r) => `${r.status.replace(/_/g, ' ')}, ${r.cases_available} cases${r.alternatives?.length ? `, ${r.alternatives.length} alternatives` : ''}`,
+  record_order_interest: (r) => `recorded ${r.readback}, order now ${rupees(r.quote.net_value)}`,
+  record_followup: (r) => `${r.recorded.type.replace(/_/g, ' ')}, ${r.recorded.when}`,
+  quote_order: (r) => `net ${rupees(r.net_value)}, saves ${rupees(r.total_savings)}, ${r.nudges.length} nudges`,
+};
+
+/** One line describing a tool result, for the UI's agent trace. */
+export function describeToolResult(name, result) {
+  if (result?.error) return `error: ${result.error}`;
+  try {
+    return results[name]?.(result) ?? 'done';
+  } catch {
+    return 'done';
   }
 }

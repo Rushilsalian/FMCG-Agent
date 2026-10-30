@@ -1,0 +1,41 @@
+Assignment: AI-Powered Voice Agent for FMCG Retailer Engagement
+
+Business scenario
+
+Imagine a large FMCG company wants to use an AI-powered voice agent to interact with retailers, answer product-related queries, explain pricing and schemes, capture order enquiries, and record follow-up requirements.
+
+The candidate is required to build a working prototype that simulates this experience.
+
+ 
+
+Key requirements
+
+Build a simple browser-based voice agent that allows a user to speak with an AI assistant and receive spoken responses. A text-based fallback should be available if voice features are not supported.
+
+The AI assistant should answer retailer questions about products, prices, schemes, and availability using sample business data.
+
+It should be able to capture product interest, requested quantities, and follow-up requirements.
+
+At the end of the interaction, the application should generate a summary and save the conversation details and outcome.
+
+The application should have a simple interface to start a conversation, interact with the AI agent, and review previous interactions.
+
+ Tools and technology
+
+Candidates are free to choose their technology stack and may use free AI tools, open-source models, libraries, and AI coding assistants.
+
+Suggested options include Google AI Studio/Gemini API, Hugging Face, Ollama, and browser-based speech recognition and text-to-speech capabilities. Candidates may use equivalent alternatives.
+
+ 
+
+Scope and assumptions
+
+This is a prototype, not a production telecalling system. Candidates may use fictional FMCG products, sample prices, mock retailer records, and reasonable business assumptions.
+
+ 
+
+Expected submission
+
+Candidates should provide the source code, setup instructions, a working demonstration, and a brief explanation of their technical approach and assumptions. They should be prepared to demonstrate the application and explain their implementation during the interview.
+
+The objective is to assess practical development skills, AI integration, problem-solving, code quality, and the ability to translate a business requirement into a working application.

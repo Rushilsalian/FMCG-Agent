@@ -17,7 +17,7 @@ export function createApp({ llm, repo = createInteractionRepo(config.interaction
   const app = express();
   app.use(express.json({ limit: '10kb' }));
   app.use(express.static(config.publicDir));
-  app.use('/api', metaRouter({ llm }));
+  app.use('/api', metaRouter({ llm, repo }));
   app.use('/api/sessions', sessionsRouter({ agent, sessions }));
   app.use('/api/interactions', interactionsRouter({ repo }));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));

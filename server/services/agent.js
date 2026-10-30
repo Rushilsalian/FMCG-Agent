@@ -1,7 +1,8 @@
 // The conversation agent: owns the tool-call loop. The browser only ever
 // sends text and receives the spoken reply plus the captured state.
-import { toolDeclarations, runTool } from '../tools/index.js';
+import { toolDeclarations, runTool, describeToolResult } from '../tools/index.js';
 import { emptyCaptured } from '../tools/capture.js';
+import { quoteOrder } from '../tools/pricing.js';
 import { buildSystemPrompt, buildGreeting } from './prompts.js';
 import { toSpeakable } from './text.js';
 import { summarize } from './summarizer.js';
@@ -12,14 +13,25 @@ const MAX_TOOL_ROUNDS = 5;
 const EMPTY_REPLY = "Sorry, I didn't catch that. Could you say it again?";
 const TOO_MANY_STEPS = 'Let me check on that and get back to you. Is there anything else I can help with?';
 
+// The slice of a past interaction the agent "remembers" on the next call.
+function recapOf(interaction) {
+  if (!interaction) return null;
+  const { id, startedAt, summary } = interaction;
+  const { outcome, overview, next_action, products, followups } = summary;
+  return { id, startedAt, outcome, overview, next_action, products, followups };
+}
+
 export function createAgent({ llm, sessions, repo }) {
-  function startConversation(retailer) {
-    const greeting = buildGreeting(retailer);
+  async function startConversation(retailer) {
+    // repo.list() is newest first, so this is the retailer's most recent call.
+    const previous = recapOf((await repo.list()).find((i) => i.retailer.id === retailer.id));
+    const greeting = buildGreeting(retailer, previous);
     const now = new Date().toISOString();
     return sessions.create({
       retailer,
+      previous,
       startedAt: now,
-      systemPrompt: buildSystemPrompt(retailer, todayISO()),
+      systemPrompt: buildSystemPrompt(retailer, todayISO(), previous),
       // History in a provider-neutral shape. The synthetic first user turn
       // keeps providers happy that expect the user to speak first.
       messages: [
@@ -38,6 +50,8 @@ export function createAgent({ llm, sessions, repo }) {
     const checkpoint = session.messages.length;
     const capturedBefore = structuredClone(session.captured);
     const toolsUsed = [];
+    const startedAt = Date.now();
+    let llmCalls = 0;
     session.busy = true;
     session.messages.push({ role: 'user', text });
 
@@ -45,6 +59,7 @@ export function createAgent({ llm, sessions, repo }) {
       let answer = TOO_MANY_STEPS;
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         const res = await llm.generate({ system: session.systemPrompt, messages: session.messages, tools: toolDeclarations });
+        llmCalls++;
 
         if (res.toolCalls.length === 0) {
           answer = toSpeakable(res.text) || EMPTY_REPLY;
@@ -56,17 +71,23 @@ export function createAgent({ llm, sessions, repo }) {
         for (const toolCall of res.toolCalls) {
           const result = runTool(toolCall.name, toolCall.args, { captured: session.captured });
           session.messages.push({ role: 'tool', id: toolCall.id, name: toolCall.name, result });
-          toolsUsed.push({ name: toolCall.name, args: toolCall.args, ok: !result.error && result.ok !== false });
+          toolsUsed.push({
+            name: toolCall.name,
+            args: toolCall.args,
+            ok: !result.error && result.ok !== false,
+            result: describeToolResult(toolCall.name, result),
+          });
         }
       }
       if (answer === TOO_MANY_STEPS) session.messages.push({ role: 'assistant', text: answer });
 
       const now = new Date().toISOString();
+      const latencyMs = Date.now() - startedAt;
       session.transcript.push(
         { role: 'retailer', text, at: now },
-        { role: 'agent', text: answer, at: now, tools: toolsUsed.map((t) => t.name) },
+        { role: 'agent', text: answer, at: now, tools: toolsUsed.map((t) => t.name), latencyMs },
       );
-      return { reply: answer, captured: session.captured, toolsUsed };
+      return { reply: answer, captured: session.captured, quote: quoteOrder(session.captured.orders), toolsUsed, llmCalls, latencyMs };
     } catch (err) {
       session.messages.length = checkpoint;
       session.captured = capturedBefore;
@@ -92,6 +113,7 @@ export function createAgent({ llm, sessions, repo }) {
         llm: `${llm.name}:${llm.model}`,
         summary,
         captured,
+        quote: quoteOrder(captured.orders),
         transcript,
       };
       await repo.save(interaction);

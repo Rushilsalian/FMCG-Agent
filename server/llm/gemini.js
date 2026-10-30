@@ -17,6 +17,20 @@ function withTimeout(promise, ms) {
 const isTransient = (err) => [500, 502, 503, 504].includes(err?.status);
 
 /**
+ * A 429's message is Gemini's JSON error body. Pull out which quota ran out
+ * (QuotaFailure.quotaId: "...PerDay..." or "...PerMinute...") and RetryInfo.retryDelay,
+ * so the user hears "daily quota, resets in 3 h" instead of "wait a few seconds".
+ */
+export function describeRateLimit(err) {
+  const text = String(err?.message || '');
+  const delay = text.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/);
+  return {
+    scope: /PerDay/i.test(text) ? 'day' : 'minute',
+    retryAfterSeconds: delay ? Math.ceil(Number(delay[1])) : null,
+  };
+}
+
+/**
  * Neutral history -> Gemini contents.
  *   { role: 'user', text }                       -> user text part
  *   { role: 'assistant', text, raw }             -> the model's original content (keeps thought signatures)
@@ -63,6 +77,7 @@ export function createGeminiLLM({ apiKey, model, timeoutMs = 15000 }) {
       try {
         return await withTimeout(ai.models.generateContent({ model, ...request }), timeoutMs);
       } catch (err) {
+        if (err?.status === 429) err.rateLimit = describeRateLimit(err);
         if (attempt >= 2 || !isTransient(err)) throw err;
         await sleep(1000);
       }

@@ -9,6 +9,7 @@ import { createApp } from '../server/app.js';
 import { createMockLLM } from '../server/llm/mock.js';
 import { createInteractionRepo } from '../server/store/interactionRepo.js';
 import { validateSummary } from '../server/services/summarySchema.js';
+import { describeRateLimit } from '../server/llm/gemini.js';
 
 let server;
 let base;
@@ -68,7 +69,15 @@ test('full conversation: price, scheme, out-of-stock, order, follow-up', async (
 
   const recorded = await say('Yes');
   assert.match(recorded.reply, /noted 10 cases of Zippy Masala Noodles/);
+  assert.match(recorded.reply, /Zippy 10 plus 1 you get 1 case/, 'the agent mentions the scheme from the quote');
+  assert.deepEqual(recorded.toolsUsed.map((t) => t.name), ['record_order_interest'], 'the quote comes back with the recording, no extra round trip');
+  assert.ok(recorded.toolsUsed.every((t) => typeof t.result === 'string'), 'each tool call carries a trace line');
   assert.deepEqual(recorded.captured.orders.map((o) => [o.sku, o.quantity, o.unit]), [['NDL-MAS-70', 10, 'cases']]);
+  assert.equal(recorded.quote.net_value, 12240);
+  assert.equal(recorded.quote.free_goods[0].cases, 1);
+
+  const total = await say("What's my total?");
+  assert.match(total.reply, /comes to ₹12,240/);
 
   const followup = await say('Please call me back on Friday after 4 pm');
   assert.match(followup.reply, /Friday after 4 pm/);
@@ -86,7 +95,8 @@ test('full conversation: price, scheme, out-of-stock, order, follow-up', async (
   assert.equal(interaction.summary.outcome, 'order_enquiry');
   assert.deepEqual(interaction.summary.products, [{ sku: 'NDL-MAS-70', name: 'Zippy Masala Noodles 70 g', quantity: 10, unit: 'cases' }]);
   assert.equal(interaction.summary.followups[0].when, 'Friday after 4 pm');
-  assert.equal(interaction.transcript.length, 1 + 2 * 7); // greeting + 7 exchanges
+  assert.equal(interaction.transcript.length, 1 + 2 * 8); // greeting + 8 exchanges
+  assert.equal(interaction.quote.net_value, 12240);
   assert.equal(interaction.retailer.owner, 'Ramesh Sharma');
   assert.ok(interaction.durationSeconds >= 0 && interaction.endedAt >= interaction.startedAt);
 
@@ -99,6 +109,76 @@ test('full conversation: price, scheme, out-of-stock, order, follow-up', async (
   assert.equal(detail.body.transcript.length, interaction.transcript.length);
   assert.equal((await get('/interactions/does-not-exist')).status, 404);
   assert.equal((await get('/interactions/bad%20id!')).status, 400);
+});
+
+test('rate limits: a daily quota says so without Retry, a per-minute one offers Retry', async () => {
+  // The error Gemini returns when the free daily quota is used up (trimmed).
+  const daily = Object.assign(new Error(JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [
+    { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] },
+    { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '11779s' },
+  ] } })), { status: 429 });
+  assert.deepEqual(describeRateLimit(daily), { scope: 'day', retryAfterSeconds: 11779 });
+  const perMinute = Object.assign(new Error('{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel-FreeTier","retryDelay":"42.5s"}'), { status: 429 });
+  assert.deepEqual(describeRateLimit(perMinute), { scope: 'minute', retryAfterSeconds: 43 });
+
+  let failWith = daily;
+  const limited = { ...createMockLLM(), async generate() { failWith.rateLimit = describeRateLimit(failWith); throw failWith; } };
+  const limitedServer = createApp({ llm: limited, repo }).listen(0);
+  await new Promise((resolve) => limitedServer.once('listening', resolve));
+  const url = `http://localhost:${limitedServer.address().port}/api`;
+  const send = async (path, body) => {
+    const res = await fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: res.status, body: await res.json() };
+  };
+  try {
+    const { body: { sessionId } } = await send('/sessions', { retailerId: 'R002' });
+    const day = await send(`/sessions/${sessionId}/messages`, { text: 'Price of Brewly coffee?' });
+    assert.equal(day.status, 503);
+    assert.equal(day.body.retryable, false);
+    assert.match(day.body.error, /free daily quota \(it resets in about 3 h 16 min\)/);
+
+    failWith = perMinute;
+    const minute = await send(`/sessions/${sessionId}/messages`, { text: 'Price of Brewly coffee?' });
+    assert.equal(minute.body.retryable, true);
+    assert.match(minute.body.error, /per-minute limit\). Please wait 43 s/);
+  } finally {
+    limitedServer.close();
+  }
+});
+
+test('the next call to the same retailer remembers the last one', async () => {
+  const retailers = await get('/retailers');
+  const sharma = retailers.body.find((r) => r.id === 'R001');
+  assert.equal(sharma.calls, 1);
+  assert.equal(sharma.last_call.outcome, 'order_enquiry');
+
+  const again = await post('/sessions', { retailerId: 'R001' });
+  assert.match(again.body.reply, /calling back as you asked/, 'the callback promised last time is acknowledged');
+  assert.equal(again.body.previousCall.products[0].sku, 'NDL-MAS-70');
+
+  const fresh = await post('/sessions', { retailerId: 'R004' });
+  assert.equal(fresh.body.previousCall, null);
+  assert.doesNotMatch(fresh.body.reply, /last time/i);
+});
+
+test('dashboard stats, CSV export and catalogue', async () => {
+  const stats = await get('/interactions/stats');
+  assert.equal(stats.status, 200);
+  assert.equal(stats.body.total_calls, 1);
+  assert.equal(stats.body.pipeline_value, 12240);
+  assert.equal(stats.body.top_products[0].sku, 'NDL-MAS-70');
+
+  const csv = await fetch(`${base}/interactions/export.csv`);
+  assert.match(csv.headers.get('content-type'), /text\/csv/);
+  const lines = (await csv.text()).trim().split('\r\n');
+  assert.equal(lines.length, 2);
+  assert.match(lines[1], /Sharma General Store/);
+
+  const catalog = await get('/catalog');
+  assert.equal(catalog.body.length, 15);
+  const atta = catalog.body.find((p) => p.sku === 'NDL-ATT-280');
+  assert.equal(atta.stock_status, 'out_of_stock');
+  assert.ok(catalog.body.find((p) => p.sku === 'NDL-MAS-70').active_schemes.some((s) => s.id === 'SCH-ZIP-10P1'));
 });
 
 test('API validates input', async () => {

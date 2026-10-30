@@ -26,6 +26,8 @@ export const api = {
   startSession: (retailerId) => request('POST', '/sessions', { retailerId }),
   sendMessage: (sessionId, text) => request('POST', `/sessions/${sessionId}/messages`, { text }),
   endSession: (sessionId) => request('POST', `/sessions/${sessionId}/end`),
+  catalog: () => request('GET', '/catalog'),
   interactions: () => request('GET', '/interactions'),
+  stats: () => request('GET', '/interactions/stats'),
   interaction: (id) => request('GET', `/interactions/${encodeURIComponent(id)}`),
 };

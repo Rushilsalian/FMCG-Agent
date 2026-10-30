@@ -66,13 +66,13 @@ export function searchProducts({ query, category } = {}) {
   };
 }
 
-const isActive = (s, today) => s.valid_from <= today && today <= s.valid_to;
+export const isSchemeActive = (s, today) => s.valid_from <= today && today <= s.valid_to;
 const describeScheme = (s) => ({ id: s.id, name: s.name, description: s.description, valid_to: s.valid_to });
 
 export function getPriceAndSchemes({ sku } = {}, today = todayISO()) {
   // Without a SKU, list every scheme running today.
   if (!sku) {
-    return { active_schemes: schemes.filter((s) => isActive(s, today)).map(describeScheme) };
+    return { active_schemes: schemes.filter((s) => isSchemeActive(s, today)).map(describeScheme) };
   }
   const p = findProduct(sku);
   if (!p) return { error: `Unknown SKU "${sku}". Use search_products to find the right SKU.` };
@@ -86,7 +86,7 @@ export function getPriceAndSchemes({ sku } = {}, today = todayISO()) {
     margin_percent: Number((((p.mrp - p.retailer_price) / p.mrp) * 100).toFixed(1)),
     case_size: p.case_size,
     case_price: Number((p.retailer_price * p.case_size).toFixed(2)),
-    active_schemes: forSku.filter((s) => isActive(s, today)).map(describeScheme),
+    active_schemes: forSku.filter((s) => isSchemeActive(s, today)).map(describeScheme),
     expired_schemes: forSku
       .filter((s) => s.valid_to < today)
       .map((s) => ({ id: s.id, name: s.name, ended_on: s.valid_to })),
@@ -117,4 +117,28 @@ export function checkAvailability({ sku } = {}) {
   };
   if (status !== 'in_stock') result.alternatives = alternativesFor(p);
   return result;
+}
+
+// The whole catalogue as the UI's product browser shows it: price, margin,
+// stock and the schemes running today, from the same functions the tools use.
+export function catalogue(today = todayISO()) {
+  return products.map((p) => {
+    const price = getPriceAndSchemes({ sku: p.sku }, today);
+    const stock = checkAvailability({ sku: p.sku });
+    return {
+      sku: p.sku,
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      pack_size: p.pack_size,
+      mrp: p.mrp,
+      retailer_price: p.retailer_price,
+      margin_percent: price.margin_percent,
+      case_size: p.case_size,
+      case_price: price.case_price,
+      stock_status: stock.status,
+      cases_available: stock.cases_available,
+      active_schemes: price.active_schemes,
+    };
+  });
 }

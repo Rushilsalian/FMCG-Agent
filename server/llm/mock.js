@@ -18,6 +18,7 @@ const BYE = /\b(bye|goodbye|that'?s all|that is all|nothing else|no thanks)\b/;
 const FOLLOWUP = /\b(call (me )?back|callback|follow ?up|visit|remind|send (me )?(the )?(details|price list|catalogue))\b/;
 const STOCK = /\b(stock|available|availability|do you have|have you got)\b/;
 const PRICE = /\b(price|rate|cost|how much|mrp|margin)\b/;
+const QUOTE = /\b(total|bill|quote|order value|how much (will|does) (it|that|the order|my order) (come|cost))\b/;
 const SCHEME = /\b(schemes?|offers?|discounts?|deals?)\b/;
 const WHEN = /\b(today|tonight|tomorrow|day after tomorrow|next week|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}\s*(am|pm))\b.*$/;
 
@@ -31,7 +32,9 @@ const hasProduct = (text) => searchProducts({ query: text }).results.length > 0;
 // "call me back on Friday after 4 pm" -> "Friday after 4 pm" (original casing)
 function extractWhen(text) {
   const m = text.toLowerCase().match(WHEN);
-  return m ? text.slice(m.index).replace(/[.?!]+$/, '').trim() : null;
+  if (!m) return null;
+  // Speech recognition capitalises the first word: "Tomorrow at 11 am" -> "tomorrow at 11 am" (weekdays keep theirs).
+  return text.slice(m.index).replace(/[.?!]+$/, '').trim().replace(/^(Today|Tonight|Tomorrow|Day|Next|This)\b/, (w) => w.toLowerCase());
 }
 const formatDate = (iso) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
@@ -82,11 +85,21 @@ function handleOrder(turn, qty) {
   if (stock.status === 'out_of_stock') return say(outOfStockLine(stock));
 
   const unitWord = qty.quantity === 1 ? qty.unit.replace(/s$/, '') : qty.unit;
-  const lowNote = stock.status === 'low_stock' ? ` Only ${stock.cases_available} cases are in stock right now.` : '';
+  const lowNote = stock.status === 'low_stock' ? ` Only ${stock.cases_available} case${stock.cases_available === 1 ? '' : 's'} ${stock.cases_available === 1 ? 'is' : 'are'} in stock right now.` : '';
   return say(
     `Just to confirm, ${qty.quantity} ${unitWord} of ${product.name} at ${rupees(product.retailer_price)} per unit.${lowNote} Shall I note that?`,
     { pendingOrder: { ...product, quantity: qty.quantity, unit: qty.unit } },
   );
+}
+
+// One sentence about what the schemes do for this SKU: a saving, else a nudge.
+function schemeLine(quote, sku) {
+  const free = quote.free_goods.find((f) => f.skus.includes(sku));
+  if (free) return ` With ${free.scheme} you get ${free.cases} case${free.cases === 1 ? '' : 's'} of ${free.name} free.`;
+  const discount = quote.discounts.find((d) => d.skus.includes(sku));
+  if (discount) return ` ${discount.scheme} saves you ${rupees(discount.amount)}.`;
+  const nudge = quote.nudges.find((n) => n.skus.includes(sku));
+  return nudge ? ` Tip: ${nudge.message}` : '';
 }
 
 function handleConfirmOrder(turn) {
@@ -94,7 +107,16 @@ function handleConfirmOrder(turn) {
   const rec = turn.results.record_order_interest;
   if (!rec) return call('record_order_interest', { sku, quantity, unit });
   if (!rec.ok) return say(`Sorry, I couldn't note that. ${rec.error}`);
-  return say(`Done, I've noted ${rec.readback}.${rec.note ? ` ${rec.note}` : ''} Anything else you need today?`);
+  return say(`Done, I've noted ${rec.readback}.${rec.note ? ` ${rec.note}` : ''}${schemeLine(rec.quote, sku)} Anything else you need today?`);
+}
+
+function handleQuote(turn) {
+  const quote = turn.results.quote_order;
+  if (!quote) return call('quote_order', {});
+  if (!quote.lines.length) return say("You haven't ordered anything yet. Which product would you like?");
+  const saving = quote.total_savings ? ` Offers save you ${rupees(quote.total_savings)}.` : '';
+  const nudge = quote.nudges[0] ? ` Tip: ${quote.nudges[0].message}` : '';
+  return say(`Your order comes to ${rupees(quote.net_value)}.${saving}${nudge} Shall I note anything else?`);
 }
 
 function handleFollowup(turn, followup) {
@@ -171,6 +193,7 @@ function respond(turn) {
     if (YES.test(lower)) return handleConfirmOrder(turn);
   }
   if (FOLLOWUP.test(lower)) return handleFollowup(turn, newFollowup(turn));
+  if (QUOTE.test(lower)) return handleQuote(turn);
 
   const product = hasProduct(turn.text);
   if (qty && product) return handleOrder(turn, qty);
